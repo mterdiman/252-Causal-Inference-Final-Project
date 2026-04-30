@@ -96,6 +96,13 @@ measles <- read.csv("data/measles_data.csv") |>
          cases_per_100k = measles_cases/population*100000)
 
 # ============================================================
+# Exposure (policy) data
+# ============================================================
+exposure<-read.csv("data/exposure vaccine policy.csv") |>
+  clean_names() |>
+  select(state, policy, exposure_binary)
+  
+# ============================================================
 # Merge ACS, urban/rural, state PHF per capita
 # ============================================================
 

@@ -1,0 +1,52 @@
+State,State Abbreviation,State FIPS,Policy,exposure_binary
+Alabama,AL,01,Religious,0
+Alaska,AK,02,Religious,0
+Arizona,AZ,04,Religious and personal,1
+Arkansas,AR,05,Religious and personal,1
+California,CA,06,Medical,0
+Colorado,CO,08,Religious and personal,1
+Connecticut,CT,09,Medical,0
+Delaware,DE,10,Religious,0
+District of Columbia,DC,11,Religious,0
+Florida,FL,12,Religious,0
+Georgia,GA,13,Religious,0
+Hawaii,HI,15,Religious,0
+Idaho,ID,16,Religious and personal,1
+Illinois,IL,17,Religious,0
+Indiana,IN,18,Religious,0
+Iowa,IA,19,Religious,0
+Kansas,KS,20,Religious,0
+Kentucky,KY,21,Religious,0
+Louisiana,LA,22,Religious and personal,1
+Maine,ME,23,Medical,0
+Maryland,MD,24,Religious,0
+Massachusetts,MA,25,Religious,0
+Michigan,MI,26,Religious and personal,1
+Minnesota,MN,27,Personal,1
+Mississippi,MS,28,Religious,0
+Missouri,MO,29,Religious,0
+Montana,MT,30,Religious,0
+Nebraska,NE,31,Religious,0
+Nevada,NV,32,Religious,0
+New Hampshire,NH,33,Religious,0
+New Jersey,NJ,34,Religious,0
+New Mexico,NM,35,Religious,0
+New York,NY,36,Medical,0
+North Carolina,NC,37,Religious,0
+North Dakota,ND,38,Religious and personal,1
+Ohio,OH,39,Religious and personal,1
+Oklahoma,OK,40,Religious and personal,1
+Oregon,OR,41,Religious and personal,1
+Pennsylvania,PA,42,Religious and personal,1
+Rhode Island,RI,44,Religious,0
+South Carolina,SC,45,Religious,0
+South Dakota,SD,46,Religious,0
+Tennessee,TN,47,Religious,0
+Texas,TX,48,Religious and personal,1
+Utah,UT,49,Religious and personal,1
+Vermont,VT,50,Religious,0
+Virginia,VA,51,Religious,0
+Washington,WA,53,Religious and personal,1
+West Virginia,WV,54,Religious and personal,1
+Wisconsin,WI,55,Religious and personal,1
+Wyoming,WY,56,Religious,0
