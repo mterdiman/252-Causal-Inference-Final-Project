@@ -98,18 +98,20 @@ measles <- read.csv("data/measles_data.csv") |>
 # ============================================================
 # Exposure (policy) data
 # ============================================================
-exposure<-read.csv("data/exposure vaccine policy.csv") |>
+
+exposure<-read.csv("data/exposure_vaccine_policy.csv") |>
   clean_names() |>
   select(state, policy, exposure_binary)
   
 # ============================================================
-# Merge ACS, urban/rural, state PHF per capita
+# Merge ACS, urban/rural, state PHF per capita, and exposure
 # ============================================================
 
 clean_state_data <- measles |>
   left_join(state_acs, by = c("state" = "state")) |>
   left_join(ur_raw, by = c("state" = "state_name")) |>
-  left_join(state_phf, by = c("state" = "state"))
+  left_join(state_phf, by = c("state" = "state")) |>
+  left_join(exposure, by = c("state" = "state"))
 
 # ---- Write out ----
 write.csv(clean_state_data, "data/clean_state_data.csv", row.names = FALSE)
