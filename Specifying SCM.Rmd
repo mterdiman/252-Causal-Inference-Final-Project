@@ -1,0 +1,172 @@
+# Specifying our Structural Causal Model
+
+```{r}
+library(tidyverse)
+clean_data <- read.csv("data/clean_state_data.csv")
+```
+
+## Endogenous Variables
+
+### Exposure:
+
+$A$, whether or not a state has state-level permissive vaccine exemptions. Specifically, states allowing all personal, religious, and medical exemptions (coded as 1) compared to states allowing only religious exemptions or only medical exemptions (coded as 0). 
+
+```{r}
+clean_data %>%
+  mutate(exemp_pol = case_when(
+    exposure_binary == 1 ~ "Both Religious & Personal",
+    exposure_binary == 0 ~ "Religious or Medical"
+  )) %>%
+  ggplot(aes(x=exemp_pol, fill = as.factor(exposure_binary))) +
+  geom_bar() +
+  xlab("State Vaccine Exemptions") +
+  ylab("Count") +
+  scale_fill_manual(
+    name = "Exemption Type",   # legend title
+    values = c("0" = "#1f77b4", "1" = "#e6550d"),  # your colors
+    labels = c("0" = "Just Religious or Just Medical",
+               "1" = "Both Religious & Personal")
+  ) +
+ theme(axis.text.x = element_blank())
+```
+
+
+### Outcome:
+
+```{r, echo=FALSE}
+#let's first look at the distribution of outcome
+#note: could potentially use poisson or neg-bin regression since our outcome data is right-skewed for raw count data
+clean_data %>%
+  ggplot(aes(x = cases_per_100k)) +
+  geom_histogram(bins = 100, fill = "turquoise") +
+  labs(x = "Case Rate", y = "Count") +
+  ggtitle("2025 Measles Case Rate Per 100k in 51 US States") +
+  theme_minimal()
+
+clean_data %>%
+  ggplot(aes(x = measles_cases)) +
+  geom_histogram(bins = 100, fill = "black") +
+  labs(x = "Case Count", y = "Count") +
+  ggtitle("2025 Measles Case Raw Counts in 51 US States") +
+  theme_minimal()
+
+clean_data %>%
+  ggplot(aes(x = log(cases_per_100k))) +
+  geom_histogram(bins = 100, fill = "maroon") +
+  labs(x = "Log Case Rate", y = "Count") +
+  ggtitle("Natural Log of 2025 Measles Case Rate Per 100k in 51 US States") +
+  theme_minimal()
+```
+
+Although our outcome is right-skewed, we will use continuous counts/rates, since dichotomizing the outcome will lead to a loss of variability and power in our statistical estimations. Additionally, there is not clear cut-off that makes sense for these data. 
+
+Thus, our outcome $Y$ is the 2025 Measles Case Rate per 100k across 51 US States, which is a continuous variable. 
+
+### Confounders:
+
+Classified as $W$ in our DAG, these include statewide attributes:
+
+(1) % of individuals with any health insurance covery (continuous)
+
+(2) % of individuals aged 25+ with Bachelor's degrees or higher (continuous)
+
+(3) % of individuals who lived in an "urban" area as classified by census data (continuous)
+
+(4) % of people living below the poverty line (continuous)
+
+(5) Median household income (continuous)
+
+(6) Public health funding per capita (continuous)
+
+
+Univariate analyses of our confounders are shown below:
+
+```{r, echo=FALSE}
+#want to make a facet wrap plot so this is going to take a sec
+clean_data_long <- clean_data %>%
+  select(pct_insuredE, pct_bachelors_plusE, pct_povertyE, pct_urban) %>%
+  pivot_longer(
+    cols = c(pct_insuredE, pct_bachelors_plusE, pct_povertyE, pct_urban),
+    names_to = "Measure",
+    values_to = "Percent"
+  )
+
+clean_data_long %>%
+  ggplot(aes(x = Percent)) +
+  geom_histogram(fill = "maroon") +
+  facet_wrap(~Measure) +
+  theme_minimal() +
+  labs(x = "Statewide Percentage", y = "Count") +
+  ggtitle("Distributions of Statewide Attributes")
+
+clean_data %>%
+  ggplot(aes(x = median_hh_incomeE)) +
+  geom_histogram(fill = "black") + 
+  theme_minimal() +
+  labs(x = "Median Household Income", y = "Count") +
+  ggtitle("Distribution of Median Household Income in 51 US States")
+
+clean_data %>%
+  ggplot(aes(x = pct_urban)) +
+  geom_histogram(fill = "black") + 
+  theme_minimal() +
+  labs(x = "% of Population in Urban Areas", y = "Count") +
+  ggtitle("Distribution of % Urban Population in 51 US States")
+
+```
+
+### Mediators (assumed to occur in between exposure and outcome, on the causal pathway):
+
+One potential mediator, $M$, we identified was statewide measles vaccine coverage. We did not include this data in our model since we do not want to adjust for variables on the causal pathway. 
+
+
+## Full Structural Equation Model
+
+$$X = \{W,A, Y\}$$
+
+- $W =$ State Level Confounders
+
+- $A =$ Exposure (Statewide Permissive Vaccine Exmptions)
+
+- $Y =$ Outcome (Statewide Measles Case Rate per 100k)
+
+$$U = \{U_W,U_A, U_Y\}$$
+- Since our exposure was not randomized, we cannot assume that any of our background factors are independent from one another. 
+
+### Structural Equations
+
+$$W = f_W(U_W)$$
+$$A = f_A(W, U_A)$$
+$$Y = f_Y(W, A, U_Y)$$
+
+## Target Causal Parameter
+
+Our target causal parameter is the average treatment effect (ATE) of permissive vaccine exemption policies on 2025 measles case rates across U.S. states.
+
+Based on our model above, we let \(A\) denote the exposure, where \(A = 1\) corresponds to states with permissive exemption policies (both personal and religious exemptions allowed), and \(A = 0\) corresponds to states with more restrictive exemption policies (religious-only or medical-only exemptions). \(Y\) denotes the outcome, defined as the 2025 measles case rate per 100k population at the state level (and is continuous).
+
+The target causal estimand is the average treatment effect:
+
+\[
+\text{ATE} = \mathbb{E}[Y(1) - Y(0)] = \mathbb{E}[Y \mid (A=1)] - \mathbb{E}[Y \mid(A=0)]
+\]
+
+where \(Y(1)\) and \(Y(0)\) represent the potential outcomes under permissive and restrictive exemption policies, respectively.
+
+### Identification Assumptions
+
+To identify this causal effect from observational data, we that our potential outcomes are independent from our exposure, conditioned on $W$ (exchangeability),
+
+\[
+Y(1), Y(0) \perp A \mid W
+\]
+
+where \(W\) is the set of observed confounders listed above. Our model assumes that, conditional on \(W\), there are no unmeasured common causes of vaccine exemption policy and measles incidence.
+
+We also assume:
+- **Positivity:** \(0 < P(A = a \mid W) < 1\) for \(a \in \{0,1\}\). (NEED TO CHECK THIS!!!!)
+
+Under these assumptions, our causal effect is identifiable. 
+
+
+
