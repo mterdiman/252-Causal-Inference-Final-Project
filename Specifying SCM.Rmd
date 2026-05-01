@@ -40,27 +40,27 @@ clean_data %>%
   ggplot(aes(x = cases_per_100k)) +
   geom_histogram(bins = 100, fill = "turquoise") +
   labs(x = "Case Rate", y = "Count") +
-  ggtitle("2025 Measles Case Rate Per 100k in 51 US States") +
+  ggtitle("2025 Measles Case Rate Per 100k in 50 US States") +
   theme_minimal()
 
 clean_data %>%
   ggplot(aes(x = measles_cases)) +
   geom_histogram(bins = 100, fill = "black") +
   labs(x = "Case Count", y = "Count") +
-  ggtitle("2025 Measles Case Raw Counts in 51 US States") +
+  ggtitle("2025 Measles Case Raw Counts in 50 US States") +
   theme_minimal()
 
 clean_data %>%
   ggplot(aes(x = log(cases_per_100k))) +
   geom_histogram(bins = 100, fill = "maroon") +
   labs(x = "Log Case Rate", y = "Count") +
-  ggtitle("Natural Log of 2025 Measles Case Rate Per 100k in 51 US States") +
+  ggtitle("Natural Log of 2025 Measles Case Rate Per 100k in 50 US States") +
   theme_minimal()
 ```
 
 Although our outcome is right-skewed, we will use continuous counts/rates, since dichotomizing the outcome will lead to a loss of variability and power in our statistical estimations. Additionally, there is not clear cut-off that makes sense for these data. 
 
-Thus, our outcome $Y$ is the 2025 Measles Case Rate per 100k across 51 US States, which is a continuous variable. 
+Thus, our outcome $Y$ is the 2025 Measles Case Rate per 100k across 50 US States, which is a continuous variable. 
 
 ### Confounders:
 
@@ -104,14 +104,14 @@ clean_data %>%
   geom_histogram(fill = "black") + 
   theme_minimal() +
   labs(x = "Median Household Income", y = "Count") +
-  ggtitle("Distribution of Median Household Income in 51 US States")
+  ggtitle("Distribution of Median Household Income in 50 US States")
 
 clean_data %>%
   ggplot(aes(x = pct_urban)) +
   geom_histogram(fill = "black") + 
   theme_minimal() +
   labs(x = "% of Population in Urban Areas", y = "Count") +
-  ggtitle("Distribution of % Urban Population in 51 US States")
+  ggtitle("Distribution of % Urban Population in 50 US States")
 
 ```
 

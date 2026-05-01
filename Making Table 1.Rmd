@@ -1,0 +1,55 @@
+---
+output: pdf_document
+---
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(broom)
+library(tinytex)
+library(gtsummary)
+library(kableExtra)
+
+clean_data <- read.csv("data/clean_state_data.csv")
+```
+
+
+
+
+
+hellow
+
+
+hi
+
+
+
+
+
+hi
+
+
+
+hi
+```{r}
+clean_data_table1 <- clean_data %>%
+  rename("% Insured" = pct_insuredE,
+         "% with Bachelor's Degree or higher" = pct_bachelors_plusE,
+         "% Living Under Poverty Line" = pct_povertyE,
+         "% Living in Urban Area" = pct_urban,
+         "Public Health Funding per Capita" = phf_per_capita) %>%
+  mutate(exposure = case_when(
+    exposure_binary == 0 ~ "Non-Permissive Exemptions",
+    TRUE ~ "Permissive Exemptions"
+  ))
+
+clean_data_table1 %>%
+  tbl_summary(include = c(`% Insured`, `% with Bachelor's Degree or higher`, `% Living Under Poverty Line`, `% Living in Urban Area`, `Public Health Funding per Capita`),
+         by = exposure, type = all_dichotomous() ~ "categorical", missing_text = "NA") %>%
+  bold_labels() %>%
+  modify_caption("Demographic Characteristics of 50 US States, 2024") %>%
+  as_kable_extra(booktabs = TRUE, longtable = TRUE, linesep = "") %>%
+  kableExtra::kable_styling(position = "center", latex_options = "hold_position", font_size = 9) %>%
+  column_spec(2:4, width = "3.5cm")
+```
+
