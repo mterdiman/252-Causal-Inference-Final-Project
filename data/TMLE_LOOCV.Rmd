@@ -1,0 +1,94 @@
+---
+output: pdf_document
+---
+
+```{r}
+library(tidyr)
+library(dplyr)
+library(readr)
+library(ltmle)
+library(SuperLearner)
+library(arm)
+library(earth)
+```
+
+```{r}
+clean_state_data <- read.csv("clean_state_data.csv")
+
+#add Georgia value from: https://gbpi.org/fast-facts-funding-for-georgias-state-and-local-public-health-system/
+clean_state_data$phf_per_capita[is.na(clean_state_data$phf_per_capita) & clean_state_data$state == "Georgia"] <- 108
+
+#add Mississippi value from: https://msdh.ms.gov/msdhsite/index.cfm/29,21487,209,pdf/MSDH_Annual_Report_FY2025.pdf
+Mi_phf<-(567831325/2954160)
+Mi_phf
+clean_state_data$phf_per_capita[is.na(clean_state_data$phf_per_capita) & clean_state_data$state == "Mississippi"] <- Mi_phf
+
+#impute missing state phf values with median
+clean_state_data$phf_per_capita[is.na(clean_state_data$phf_per_capita)] <- median(clean_state_data$phf_per_capita, na.rm = TRUE)
+
+#cleaning of dataframe to include only model variables and to rename in alignment with causal/course notation
+# Y = measles case rate, A = exposure/policy, W1 = pct_urban, W2 = pct_insuredE, W3 = pct_bachelors_plusE, W4 = pct_povertyE, W5 = phf_per_capita
+model_df<-clean_state_data|>
+  dplyr::select(cases_per_100k,exposure_binary,pct_urban,pct_insuredE,pct_bachelors_plusE,pct_povertyE,phf_per_capita)|>
+  rename(Y = cases_per_100k,
+         A = exposure_binary,
+         W1 = pct_urban,
+         W2 = pct_insuredE,
+         W3 = pct_bachelors_plusE,
+         W4 = pct_povertyE,
+         W5 = phf_per_capita)
+
+# create wrapper function around tmle to run with LOOCV
+run_ltmle <- function(dat, W=NULL, A, Y, SL.library=NULL, verbose=F){
+  set.seed(1)
+  df <- dat[,c(W,A,Y)]
+  attr(SL.library, "return.fit") <- TRUE
+  out <-  suppressWarnings(suppressMessages( 
+    ltmle(data =df, Anodes = A, Ynodes = Y, 
+          abar = list(1,0), 
+          SL.library=SL.library,
+          SL.cvControl =list(V=nrow(df)), #leave-one-out CV
+          variance.method='ic',
+          estimate.time=F)))
+  print('Summary of pscore')
+  print(summary(out$cum.g))
+  
+  print(summary(out))
+  # print(out$fit) # provides the TMLE fits (including SL)
+  
+  out 
+}
+
+# removed "SL.ridge" and "SL.glmnet" as they were giving error messages and crashing, didn't change the output anyway 
+# potentially because data is low dimensional
+SL.library <- c( "SL.mean", "SL.glm", "SL.bayesglm", "SL.earth", "SL.gam")
+
+
+# run the function - replace dat with your df, 
+tmle_1 <- run_ltmle(dat = model_df, 
+                    W = c("W1","W2","W3","W4","W5"), 
+                    A = "A", 
+                    Y = "Y", 
+                    SL.library=SL.library
+                    )
+
+#unadjusted estimator (lab 5 says we need to do this for our project)
+model_df <- model_df %>%
+  dplyr::select(W1, W2, W3, W4, W5, A, Y)
+tmle_unadj <- suppressWarnings(suppressMessages( 
+  ltmle(data = model_df, 
+        Anodes = "A", 
+        Ynodes = "Y", 
+        abar = list(1,0), 
+        estimate.time = FALSE)))
+summary(tmle_unadj)
+
+# get estimates & CIs
+treatment_est <- summary(tmle_1)$effect.measures$treatment$estimate
+control_est <- summary(tmle_1)$effect.measures$control$estimate
+control_ci_lower <- summary(tmle_1)$effect.measures$control$CI[1]
+control_ci_upper <- summary(tmle_1)$effect.measures$control$CI[2]
+treatment_ci_lower <- summary(tmle_1)$effect.measures$treatment$CI[1]
+treatment_ci_upper <- summary(tmle_1)$effect.measures$treatment$CI[2]
+```
+

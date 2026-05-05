@@ -1,0 +1,102 @@
+---
+title: "GCOMP"
+author: "Tywana Groce"
+date: "2026-05-01"
+output: pdf_document
+---
+
+This document has been slightly edited by Mira Terdiman.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+data <- read.csv("clean_state_data.csv")
+
+#Georgia value added
+data$phf_per_capita[data$state == "Georgia" & is.na(data$phf_per_capita)] <- 108
+
+#Mississippi value added
+Mi_phf <- (567831325/2954160)
+data$phf_per_capita[data$state == "Mississippi" & is.na(data$phf_per_capita)] <- Mi_phf
+
+data$phf_per_capita[is.na(data$phf_per_capita)] <- median(data$phf_per_capita, na.rm = TRUE)
+```
+
+```{r}
+names(data)
+```
+
+```{r}
+model1 <- lm(cases_per_100k ~ exposure_binary + pct_povertyE + pct_urban + phf_per_capita, data = data)
+model2 <- lm(cases_per_100k ~ exposure_binary + pct_povertyE + pct_urban + phf_per_capita + pct_insuredE + pct_bachelors_plusE, data = data)
+```
+
+
+```{r}
+data_A1 <- data
+data_A1$exposure_binary <- 1
+
+data_A0 <- data
+data_A0$exposure_binary <- 0
+
+#G-comp with the parsed model (model1)
+Y1_pred <- predict(model1, newdata = data_A1)
+Y0_pred <- predict(model1, newdata = data_A0)
+
+ATE <- mean(Y1_pred - Y0_pred)
+
+#G-comp with the full model (model2)
+Y1_pred2 <- predict(model2, newdata = data_A1)
+Y0_pred2 <- predict(model2, newdata = data_A0)
+
+ATE2 <- mean(Y1_pred2 - Y0_pred2)
+
+#two ATES
+ATE
+ATE2
+
+#fairly similar
+
+```
+
+```{r}
+nobs(model1)
+```
+
+```{r}
+# no states were dropped
+used_rows <- as.numeric(rownames(model.frame(model1)))
+used_states <- data$state[used_rows]
+
+dropped_states <- setdiff(data$state, used_states)
+
+dropped_states
+```
+
+Method:
+Fit two linear regression models estimating E[Y | A, W]
+
+We kept the first model simple and focused on a few key confounders from our DAG, especially since our sample size is small, to help avoid overfitting.
+Adjusted for:
+Poverty,
+Urban population,
+Public health funding
+
+Predicted outcomes under:
+A = 1 (more permissive policies)
+A = 0 (more restrictive policies)
+
+Estimated ATE as the average difference in predicted outcomes
+
+Result:
+
+ATE = 0.462 additional measles cases per 100,000 or 3.0 additional measles cases per 10,000 people
+ATE2 = 0.416
+
+Interpretation:
+
+States with more permissive vaccine exemption policies had, on average, about 0.462 additional measles cases per 100,000 people or 4.62 additional measles cases per 10,000 people compared to states with stricter policies after adjustment. This suggests that more permissive policies may lead to higher measles incidence at the state level. However, these results should be interpreted cautiously due to the small sample size and the possibility of unmeasured confounding.
+
+

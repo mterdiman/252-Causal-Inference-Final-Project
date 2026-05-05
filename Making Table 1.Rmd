@@ -13,24 +13,6 @@ library(kableExtra)
 clean_data <- read.csv("data/clean_state_data.csv")
 ```
 
-
-
-
-
-hellow
-
-
-hi
-
-
-
-
-
-hi
-
-
-
-hi
 ```{r}
 clean_data_table1 <- clean_data %>%
   rename("% Insured" = pct_insuredE,
