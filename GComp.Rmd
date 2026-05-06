@@ -5,14 +5,23 @@ date: "2026-05-01"
 output: pdf_document
 ---
 
+# G-Comp With Two Regression Models
+
 This document has been slightly edited by Mira Terdiman.
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(tidyr)
+library(dplyr)
+library(readr)
+library(ltmle)
+library(SuperLearner)
+library(arm)
+library(earth)
 ```
 
 ```{r}
-data <- read.csv("clean_state_data.csv")
+data <- read.csv("data/clean_state_data.csv")
 
 #Georgia value added
 data$phf_per_capita[data$state == "Georgia" & is.na(data$phf_per_capita)] <- 108
@@ -98,5 +107,46 @@ ATE2 = 0.416
 Interpretation:
 
 States with more permissive vaccine exemption policies had, on average, about 0.462 additional measles cases per 100,000 people or 4.62 additional measles cases per 10,000 people compared to states with stricter policies after adjustment. This suggests that more permissive policies may lead to higher measles incidence at the state level. However, these results should be interpreted cautiously due to the small sample size and the possibility of unmeasured confounding.
+
+# G-Comp With Super Learner
+
+https://ehsanx.github.io/TMLEworkshop/tmle.html (using this as a reference)
+
+```{r}
+set.seed(252)
+#reformatting data for the superlearner
+final_df <- data |>
+  dplyr::select(cases_per_100k,exposure_binary,pct_urban,pct_insuredE,pct_bachelors_plusE,pct_povertyE,phf_per_capita)|>
+  rename(Y = cases_per_100k,
+         A = exposure_binary,
+         W1 = pct_urban,
+         W2 = pct_insuredE,
+         W3 = pct_bachelors_plusE,
+         W4 = pct_povertyE,
+         W5 = phf_per_capita)
+
+slib <- c( "SL.mean", "SL.glm", "SL.bayesglm", "SL.earth", "SL.gam")
+
+#modeling
+model_sl <- SuperLearner(Y = final_df$Y,
+                         X = final_df[, c("A", "W1", "W2", "W3", "W4", "W5")],
+                         SL.library = slib,
+                         family = "gaussian")
+
+#estimating potential outcomes
+data_a1 <- final_df[, c("A", "W1", "W2", "W3", "W4", "W5")]
+data_a1$A <- 1
+pred_y1 <- predict(model_sl, newdata = data_a1)$pred
+
+data_a0 <- final_df[, c("A", "W1", "W2", "W3", "W4", "W5")]
+data_a0$A <- 0
+pred_y0 <- predict(model_sl, newdata = data_a0)$pred
+
+ATE_SL <- mean(pred_y1 - pred_y0)
+
+ATE_SL
+```
+
+Much lower ATE than previously... interesting!
 
 
