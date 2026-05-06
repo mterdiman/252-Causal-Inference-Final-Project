@@ -131,6 +131,7 @@ slib <- c( "SL.mean", "SL.glm", "SL.bayesglm", "SL.earth", "SL.gam")
 model_sl <- SuperLearner(Y = final_df$Y,
                          X = final_df[, c("A", "W1", "W2", "W3", "W4", "W5")],
                          SL.library = slib,
+                         cvControl = list(V = nrow(final_df)),
                          family = "gaussian")
 
 #estimating potential outcomes
@@ -149,4 +150,12 @@ ATE_SL
 
 Much lower ATE than previously... interesting!
 
+```{r}
+#comparing to the unadjusted model
+ATE_unadj <- mean(final_df$Y[final_df$A == 1]) -
+             mean(final_df$Y[final_df$A == 0])
 
+ATE_unadj
+```
+
+Very different from the adjusted. I am slightly concerned something is wrong with the superlearner method. 

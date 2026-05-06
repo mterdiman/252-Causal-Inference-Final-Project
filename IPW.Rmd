@@ -1,0 +1,135 @@
+---
+output: pdf_document
+---
+
+```{r echo=F}
+library(tidyr)
+library(dplyr)
+library(readr)
+library(SuperLearner)
+library(arm)
+library(earth)
+```
+
+```{r}
+# ================================================
+# clean, impute missing values, rename
+# ================================================
+
+clean_state_data <- read.csv("data/clean_state_data.csv")
+
+# add Georgia value from: https://gbpi.org/fast-facts-funding-for-georgias-state-and-local-public-health-system/
+clean_state_data$phf_per_capita[is.na(clean_state_data$phf_per_capita) & clean_state_data$state == "Georgia"] <- 108
+
+# add Mississippi value from: https://msdh.ms.gov/msdhsite/index.cfm/29,21487,209,pdf/MSDH_Annual_Report_FY2025.pdf
+clean_state_data$phf_per_capita[is.na(clean_state_data$phf_per_capita) & clean_state_data$state == "Mississippi"] <- 567831325/2954160
+
+# impute missing state phf values with median
+clean_state_data$phf_per_capita[is.na(clean_state_data$phf_per_capita)] <- median(clean_state_data$phf_per_capita, na.rm = TRUE)
+
+# cleaning of dataframe to include only model variables and to rename in alignment with causal/course notation
+# Y = measles case rate, A = exposure/policy, W1 = pct_urban, W2 = pct_insuredE, W3 = pct_bachelors_plusE, W4 = pct_povertyE, W5 = phf_per_capita
+model_df <- clean_state_data %>% 
+  dplyr::select(cases_per_100k,exposure_binary,pct_urban,pct_insuredE,pct_bachelors_plusE,pct_povertyE,phf_per_capita) %>% 
+  rename(Y = cases_per_100k,
+         A = exposure_binary,
+         W1 = pct_urban,
+         W2 = pct_insuredE,
+         W3 = pct_bachelors_plusE,
+         W4 = pct_povertyE,
+         W5 = phf_per_capita)
+
+SL.library <- c( "SL.mean", "SL.glm", "SL.bayesglm", "SL.earth", "SL.gam")
+```
+
+```{r}
+# ================================================
+# do IPW with parametric propensity score estimation
+# ================================================
+
+set.seed(252)
+
+# parametric propensity score estimation
+propensity_score <- glm(A ~ W1 + W2 + W3 + W4 + W5, family = 'binomial', data = model_df)
+
+# get predicted probabilities
+prob_exposed <- predict(propensity_score, type = 'response')
+prob_unexposed <- 1 - prob_exposed
+
+# look for positivity violations
+summary(prob_exposed)     
+summary(prob_unexposed)     
+# some positivity violations
+
+# create weights
+wt_exposed <- as.numeric(model_df$A == 1) / prob_exposed
+wt_unexposed <- as.numeric(model_df$A == 0) / prob_unexposed
+
+# check weights
+summary(wt_exposed)
+summary(wt_unexposed)
+
+# evaluate the IPW estimand
+ipw <- mean(wt_exposed*model_df$Y) - mean(wt_unexposed*model_df$Y)
+ipw
+
+# evaluate the stabilized IPW estimand
+ipw_stabilized <- mean(wt_exposed*model_df$Y)/mean(wt_exposed) - mean(wt_unexposed*model_df$Y)/mean(wt_unexposed)
+ipw_stabilized     # same as non-stabilized
+
+# unadjusted 
+wt_exposed_unadjusted <- as.numeric(model_df$A==1)/mean(model_df$A)
+wt_unexposed_unadjusted <- as.numeric(model_df$A==0)/(1-mean(model_df$A))
+unadjusted <- mean(wt_exposed_unadjusted*model_df$Y) - mean(wt_unexposed_unadjusted*model_df$Y)
+unadjusted     # exactly the same as adjusted
+```
+
+```{r}
+# ================================================
+# do IPW with SuperLearner
+# ================================================
+
+set.seed(252)
+
+# fit SuperLearner for propensity score
+SL_propensity <- SuperLearner(
+  Y = model_df$A,
+  X = subset(model_df, select = c(W1, W2, W3, W4, W5)),
+  SL.library = SL.library,
+  #cvControl = list(V=10, stratifyCV = TRUE),
+  family = binomial()
+)
+
+# get predicted probabilities
+prob_exposed <- SL_propensity$SL.predict
+prob_unexposed <- 1 - prob_exposed
+
+# look for positivity violations
+summary(prob_exposed)     
+summary(prob_unexposed)     
+# no positivity violations, but all predicted probabilities are pretty close together; 
+# this indicates the covariates are not very predictive of exposure
+
+# create weights
+wt_exposed <- as.numeric(model_df$A == 1) / prob_exposed
+wt_unexposed <- as.numeric(model_df$A == 0) / prob_unexposed
+
+# check weights
+summary(wt_exposed)
+summary(wt_unexposed)
+
+# evaluate the IPW estimand
+ipw <- mean(wt_exposed*model_df$Y) - mean(wt_unexposed*model_df$Y)
+ipw
+
+# evaluate the stabilized IPW estimand
+ipw_stabilized <- mean(wt_exposed*model_df$Y)/mean(wt_exposed) - mean(wt_unexposed*model_df$Y)/mean(wt_unexposed)
+ipw_stabilized     # same as non-stabilized
+
+# unadjusted - we expect this to be pretty close to adjusted, given covariates are not very predictive of exposure
+wt_exposed_unadjusted <- as.numeric(model_df$A==1)/mean(model_df$A)
+wt_unexposed_unadjusted <- as.numeric(model_df$A==0)/(1-mean(model_df$A))
+unadjusted <- mean(wt_exposed_unadjusted*model_df$Y) - mean(wt_unexposed_unadjusted*model_df$Y)
+unadjusted     # exactly the same as adjusted
+```
+
