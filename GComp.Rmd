@@ -134,11 +134,11 @@ model_sl <- SuperLearner(Y = final_df$Y,
                          family = "gaussian")
 
 #estimating potential outcomes
-data_a1 <- final_df[, c("A", "W1", "W2", "W3", "W4", "W5")]
+data_a1 <- final_df[, c("W1", "W2", "W3", "W4", "W5")]
 data_a1$A <- 1
 pred_y1 <- predict(model_sl, newdata = data_a1)$pred
 
-data_a0 <- final_df[, c("A", "W1", "W2", "W3", "W4", "W5")]
+data_a0 <- final_df[, c("W1", "W2", "W3", "W4", "W5")]
 data_a0$A <- 0
 pred_y0 <- predict(model_sl, newdata = data_a0)$pred
 
