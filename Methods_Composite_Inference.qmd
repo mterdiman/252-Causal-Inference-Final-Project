@@ -1,0 +1,480 @@
+---
+author: "Mira Terdiman"
+title: "252 Final Project Analysis"
+---
+
+```{r}
+rm(list = ls()) #clear environment to make sure there are no overwriting errors
+set.seed(252)
+```
+
+The purpose of this document is to compile all of our estimator methods and data (to avoid accidental conflicts/overwriting) and also include statistical inference for these methods. Each section will include the ATE for a particular estimator, as well as statistical inference for that ATE. The inference will be conducted via non-parametric bootstrapping.
+
+To make the bootstrapping easier, I am turning each estimation process into a function that can then be applied repeatedly to our data (all functions assume data has already been cleaned to include variables A, Y, W1, etc). 
+
+```{r, echo=FALSE, include=FALSE}
+#loading necessary libraries
+library(tidyr)
+library(dplyr)
+library(readr)
+library(SuperLearner)
+library(arm)
+library(earth)
+library(ltmle)
+```
+
+
+```{r, echo=FALSE}
+clean_state_data <- read.csv("data/clean_state_data.csv")
+
+#adding in/imputing missing data
+clean_state_data$phf_per_capita[is.na(clean_state_data$phf_per_capita) & clean_state_data$state == "Georgia"] <- 108
+clean_state_data$phf_per_capita[is.na(clean_state_data$phf_per_capita) & clean_state_data$state == "Mississippi"] <- 567831325/2954160
+clean_state_data$phf_per_capita[is.na(clean_state_data$phf_per_capita)] <- median(clean_state_data$phf_per_capita, na.rm = TRUE)
+
+#creating model data
+model_df <- clean_state_data %>%
+  dplyr::select(cases_per_100k,exposure_binary,pct_urban,pct_insuredE,pct_bachelors_plusE,pct_povertyE,phf_per_capita)|>
+  rename(Y = cases_per_100k,
+         A = exposure_binary,
+         W1 = pct_urban,
+         W2 = pct_insuredE,
+         W3 = pct_bachelors_plusE,
+         W4 = pct_povertyE,
+         W5 = phf_per_capita)
+```
+
+
+# Unadjusted Estimator
+
+## Estimator
+
+Our unadjusted estimator is simply taking the expected difference in our outcome $Y$ across our two exposure levels, $A = 0,1$. 
+
+```{r}
+ATE_un <- function(dat){
+  ATE_unadj <- mean(dat$Y[dat$A == 1]) -
+             mean(dat$Y[dat$A == 0])
+  return(ATE_unadj)
+}
+
+ATE_un(model_df)
+```
+
+Our unadjusted ATE is 0.420. Specifically, the states with more permissive vaccine exemption policies had, on average, about 0.420 additional measles cases per 100,000 people or 4.2 additional measles cases per 10,000 people compared to states with stricter policies. This is a naive estimator, and we will now run the three techniques we learned in class.
+
+## Inference
+
+```{r}
+B <- 500
+
+unadj_boot_est <- data.frame(matrix(NA, nrow = B, ncol = 1))
+
+for(b in 1:B){
+  n <- nrow(model_df)
+  index.boot <- sample(1:n, replace = T)
+  dt_boot <- model_df[index.boot,]
+  
+  unadj_boot_est[b,] <- ATE_un(dat = dt_boot)
+}
+colnames(unadj_boot_est) <- "Unadjusted Estimator"
+
+summary(unadj_boot_est$`Unadjusted Estimator`)
+var(unadj_boot_est$`Unadjusted Estimator`)
+```
+
+```{r}
+library(ggplot2)
+unadj_boot_est %>%
+  ggplot(aes(x = `Unadjusted Estimator`)) +
+  geom_histogram() +
+  theme_minimal() +
+  geom_vline(xintercept = mean(unadj_boot_est$`Unadjusted Estimator`), color = "maroon")
+```
+
+
+# G-Computation
+
+We will now perform G-Computation, both with and without using a super learner.
+
+## Simple G-Computation
+
+```{r}
+g_comp_simp <- function(dat){
+  gcomp_mod <- lm(Y ~ A + W1 + W2 + W3 + W4 + W5, data = dat)
+  
+  #defining potential outcomes
+  data_A1 <- dat
+  data_A1$A <- 1
+  
+  data_A0 <- dat
+  data_A0$A <- 0
+  
+  #predictions
+  Y1_pred <- predict(gcomp_mod, newdata = data_A1)
+  Y0_pred <- predict(gcomp_mod, newdata = data_A0)
+  
+  ATE <- mean(Y1_pred - Y0_pred)
+  return(ATE)
+  
+}
+
+g_comp_simp(model_df)
+```
+
+Our adjusted ATE via G-Comp is 0.416. Specifically, the states with more permissive vaccine exemption policies had, on average, about 0.416 additional measles cases per 100,000 people or 4.16 additional measles cases per 10,000 people compared to states with stricter policies. This estimate is very similar to the unadjusted ATE. 
+
+## G-Computation With Super Learner
+
+```{r}
+g_comp_sl <- function(dat, SL.library){
+  
+  #creating datasets
+  X <- subset(dat, select = -Y)
+  X1 <- X0 <-X
+  X1$A <- 1 
+  X0$A <- 0
+  
+  #modeling
+  gcomp_mod_sl <- SuperLearner(Y = dat$Y,
+                         X = X,
+                         SL.library = SL.library,
+                         cvControl = list(V = nrow(dat)),
+                         family = "gaussian")
+  
+  #potential outcomes
+  pred_y1 <- predict(gcomp_mod_sl, newdata = X1)$pred
+  pred_y0 <- predict(gcomp_mod_sl, newdata = X0)$pred
+  
+  #ATE
+  ATE_SL <- mean(pred_y1 - pred_y0)
+  return(ATE_SL)
+  
+}
+
+
+SL.library <- c( "SL.mean", "SL.glm", "SL.bayesglm", "SL.earth", "SL.gam")
+
+g_comp_sl(model_df, SL.library)
+
+```
+
+## Statistical Inference
+
+(doing simple G-comp, since using a superlearner gave a really weird result)
+
+```{r}
+B <- 500
+
+gcomp_boot_est <- data.frame(matrix(NA, nrow = B, ncol = 1))
+
+for(b in 1:B){
+  n <- nrow(model_df)
+  index.boot <- sample(1:n, replace = T)
+  dt_boot <- model_df[index.boot,]
+  
+  gcomp_boot_est[b,] <- g_comp_simp(dat = dt_boot)
+  
+}
+colnames(gcomp_boot_est) <- "GComp Estimator"
+
+summary(gcomp_boot_est$`GComp Estimator`)
+var(gcomp_boot_est$`GComp Estimator`)
+```
+
+
+# Inverse Probability Weighting
+
+## Simple IPW
+
+```{r}
+IPW_simp <- function(dat){
+  propensity_score <- glm(A ~ W1 + W2 + W3 + W4 + W5, family = 'binomial', data = dat)
+  
+  prob_exposed <- predict(propensity_score, type = 'response')
+  prob_unexposed <- 1 - prob_exposed
+  
+  wt_exposed <- as.numeric(model_df$A == 1) / prob_exposed
+  wt_unexposed <- as.numeric(model_df$A == 0) / prob_unexposed
+
+# evaluate the IPW estimand
+  ipw <- mean(wt_exposed*model_df$Y) - mean(wt_unexposed*model_df$Y)
+  ipw
+
+# evaluate the stabilized IPW estimand
+  ipw_stabilized <- mean(wt_exposed*model_df$Y)/mean(wt_exposed) - mean(wt_unexposed*model_df$Y)/mean(wt_unexposed)
+  ipw_stabilized   
+  
+  ipws <- list(unstabilixed = ipw, stabilized = ipw_stabilized)
+  
+  return(ipws)
+  
+}
+
+IPW_simp(model_df)
+```
+
+## IPW With Super Learner
+
+```
+IPW_sl <- function(dat, SL.library){
+  SL_propensity <- SuperLearner(
+  Y = dat$A,
+  X = subset(dat, select = -c(A,Y)),
+  SL.library = SL.library,
+  #cvControl = list(V=10, stratifyCV = TRUE),
+  family = binomial())
+  
+  #predicted probabilities
+  prob_exposed <- SL_propensity$SL.predict
+  prob_unexposed <- 1 - prob_exposed
+  
+  # look for positivity violations
+  # print(summary(prob_exposed))    
+  # print(summary(prob_unexposed))
+  
+  # create weights
+  wt_exposed <- as.numeric(model_df$A == 1) / prob_exposed
+  wt_unexposed <- as.numeric(model_df$A == 0) / prob_unexposed
+  
+  # check weights
+  # print(summary(wt_exposed))
+  # print(summary(wt_unexposed))
+  
+  ipw <- mean(wt_exposed*model_df$Y) - mean(wt_unexposed*model_df$Y)
+  
+  ipw_stabilized <- mean(wt_exposed*model_df$Y)/mean(wt_exposed) - mean(wt_unexposed*model_df$Y)/mean(wt_unexposed)
+  
+  ipws <- list(unstabilixed = ipw, stabilized = ipw_stabilized)
+  
+  return(ipws)
+  
+}
+
+IPW_sl(model_df, SL.library)
+```
+
+## Statistical Inference
+
+### For Simple IPW
+
+```{r}
+B <- 500
+
+ipw_simp_boot_est <- data.frame(matrix(NA, nrow = B, ncol = 1))
+
+for(b in 1:B){
+  n <- nrow(model_df)
+  index.boot <- sample(1:n, replace = T)
+  dt_boot <- model_df[index.boot,]
+  
+  ipw_simp_boot_est[b,] <- IPW_simp(dat = dt_boot)$stabilized
+  
+}
+colnames(ipw_simp_boot_est) <- "IPW Estimator"
+
+summary(ipw_simp_boot_est$`IPW Estimator`)
+var(ipw_simp_boot_est$`IPW Estimator`)
+```
+
+
+### For Super Learner IPW
+
+```
+B <- 500
+#had to majorly simplify the library:)
+SL.library <- c( "SL.mean", "SL.glmnet")
+
+ipw_boot_est <- data.frame(matrix(NA, nrow = B, ncol = 1))
+
+for(b in 1:B){
+  n <- nrow(model_df)
+  index.boot <- sample(1:n, replace = T)
+  dt_boot <- model_df[index.boot,]
+  
+   if (length(unique(dt_boot$A)) < 2) {
+    ipw_boot_est[b,] <- NA
+    next
+  }
+  
+  #getting lots of warnings and model is not convering
+  ipw_boot_est[b,] <- tryCatch(
+  suppressWarnings(
+    IPW_sl(dat = dt_boot, SL.library = SL.library)$stabilized
+  ),
+  error = function(e) NA
+)
+  
+}
+colnames(ipw_boot_est) <- "IPW Estimator"
+
+summary(ipw_boot_est$`IPW Estimator`)
+var(ipw_boot_est$`IPW Estimator`)
+```
+
+
+# TMLE
+
+## Estimator
+
+```{r}
+# creating wrapper function for LOOCV
+
+run_ltmle <- function(dat, W=NULL, A, Y, SL.library=NULL, verbose=F){
+  df <- dat[,c(W,A,Y)]
+  attr(SL.library, "return.fit") <- TRUE
+  out <-  suppressWarnings(suppressMessages( 
+    ltmle(data = df, Anodes = A, Ynodes = Y, 
+          abar = list(1,0), 
+          SL.library=SL.library,
+          SL.cvControl =list(V=nrow(dat)), #leave-one-out CV
+          variance.method='ic',
+          estimate.time=F)))
+  print('Summary of pscore')
+  print(summary(out$cum.g))
+  
+  print(summary(out))
+  # print(out$fit) # provides the TMLE fits (including SL)
+  
+  out 
+}
+```
+
+```{r}
+tmle_1 <- run_ltmle(dat = model_df, 
+                    W = c("W1","W2","W3","W4","W5"), 
+                    A = "A", 
+                    Y = "Y", 
+                    SL.library=SL.library
+                    )
+
+summary(tmle_1)$effect.measures$ATE$estimate
+# get estimates & CIs
+# treatment_est <- summary(tmle_1)$effect.measures$treatment$estimate
+# control_est <- summary(tmle_1)$effect.measures$control$estimate
+# control_ci_lower <- summary(tmle_1)$effect.measures$control$CI[1]
+# control_ci_upper <- summary(tmle_1)$effect.measures$control$CI[2]
+# treatment_ci_lower <- summary(tmle_1)$effect.measures$treatment$CI[1]
+# treatment_ci_upper <- summary(tmle_1)$effect.measures$treatment$CI[2]
+```
+
+## Statistical Inference
+
+```{r}
+B <- 500
+SL.library <- c( "SL.mean", "SL.glm", "SL.bayesglm", "SL.earth", "SL.gam")
+
+TMLE_boot_est <- data.frame(matrix(NA, nrow = B, ncol = 1))
+
+for(b in 1:B){
+  n <- nrow(model_df)
+  index.boot <- sample(1:n, replace = T)
+  dt_boot <- model_df[index.boot,]
+  
+  fit <- suppressWarnings(
+      run_ltmle(
+        dat = dt_boot,
+        W = c("W1","W2","W3","W4","W5"),
+        A = "A",
+        Y = "Y",
+        SL.library = SL.library
+      )
+    )
+  
+  TMLE_boot_est[b,] <- summary(fit)$effect.measures$ATE$estimate
+  
+
+}
+colnames(TMLE_boot_est) <- "TMLE Estimator"
+
+summary(TMLE_boot_est$`TMLE Estimator`)
+var(TMLE_boot_est$`TMLE Estimator`)
+```
+
+# Summary
+
+```{r}
+#creating large df with all results
+inference_df <- bind_cols(gcomp_boot_est, ipw_simp_boot_est, TMLE_boot_est, unadj_boot_est)
+
+inference_df_long <- inference_df %>%
+  pivot_longer(
+    cols = c(`GComp Estimator`, `IPW Estimator`, `TMLE Estimator`, `Unadjusted Estimator`),
+    names_to = "Estimate",
+    values_to = "ATE"
+  )
+
+inference_df_long %>%
+  ggplot(aes(x = ATE)) +
+  geom_histogram(color = "#06768d", fill = "turquoise") +
+  facet_grid(~Estimate) +
+  labs(y = "Frequency", x = "ATE Estimate") +
+  theme_minimal() +
+  ggtitle("Histogram of point estimates from four estimators over 500 bootstrapped samples")
+```
+
+```{r}
+inference_df%>%
+  ggplot(aes(x = `Unadjusted Estimator`)) +
+  geom_histogram(color = "#06768d", fill = "turquoise") +
+  labs(y = "Frequency", x = "Unadjusted ATE Estimate") +
+  theme_minimal() +
+  ggtitle("Point estimates from simple substitution estimator over 500 bootstrapped samples")
+
+inference_df%>%
+  ggplot(aes(x = `GComp Estimator`)) +
+  geom_histogram(color = "#06768d", fill = "turquoise") +
+  labs(y = "Frequency", x = "G-Computation ATE Estimate") +
+  theme_minimal() +
+  ggtitle("Point estimates from IPW estimator over 500 bootstrapped samples")
+
+inference_df%>%
+  ggplot(aes(x = `IPW Estimator`)) +
+  geom_histogram(color = "#06768d", fill = "turquoise") +
+  labs(y = "Frequency", x = "IPW ATE Estimate") +
+  theme_minimal() +
+  ggtitle("Point estimates from IPW estimator over 500 bootstrapped samples")
+
+inference_df%>%
+  ggplot(aes(x = `TMLE Estimator`)) +
+  geom_histogram(color = "#06768d", fill = "turquoise") +
+  labs(y = "Frequency", x = "TMLE ATE Estimate") +
+  theme_minimal() +
+  ggtitle("Point estimates from TMLE estimator over 500 bootstrapped samples")
+```
+
+## 95% CIs
+
+```{r}
+create.CI <- function(pt, boot, alpha=0.05){
+  Zquant <- qnorm(alpha/2, lower.tail=F)
+  CI.normal <- c(pt - Zquant*sd(boot), pt + Zquant*sd(boot))
+  CI.quant <- quantile(boot, prob=c(0.025,0.975))
+  
+  yay<- data.frame(t(c(pt, CI.normal, CI.quant)))
+  colnames(yay)<- c('pt', paste0(c('CI.lo', 'CI.hi'), '.normal'),
+                    paste0(c('CI.lo', 'CI.hi'), '.quant') )
+  return(yay)
+}
+
+#simple substitution
+ss<- create.CI(pt = 0.4204447, boot=inference_df[,"Unadjusted Estimator"])
+
+#g-comp estimator
+gc <- create.CI(pt = 0.4160642, boot=inference_df[,"GComp Estimator"])
+
+#IPW estimator
+ip <- create.CI(pt = 0.4247156, boot=inference_df[,"IPW Estimator"])
+
+#TMLE estimator
+tm <- create.CI(pt = summary(tmle_1)$effect.measures$ATE$estimate, boot=inference_df[, "TMLE Estimator"])
+
+CI_95 <- bind_rows(ss, gc, ip, tm)
+
+
+CI_95 <- CI_95 %>%
+  mutate(Estimator = c("Unadjusted", "G-Computation", "IPW", "TMLE"))
+
+as_tibble(CI_95)
+```
+
