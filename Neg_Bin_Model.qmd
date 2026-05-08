@@ -1,0 +1,134 @@
+---
+author: "Mira Terdiman"
+title: "252 Final Project Analysis"
+---
+
+Using this doc to run the negative binomial model we discussed with case counts.
+
+```{r}
+#getting data set up
+rm(list = ls())
+set.seed(252)
+library(tidyr)
+library(ggplot2)
+
+clean_state_data <- read.csv("data/clean_state_data.csv")
+
+#adding in/imputing missing data
+clean_state_data$phf_per_capita[is.na(clean_state_data$phf_per_capita) & clean_state_data$state == "Georgia"] <- 108
+clean_state_data$phf_per_capita[is.na(clean_state_data$phf_per_capita) & clean_state_data$state == "Mississippi"] <- 567831325/2954160
+clean_state_data$phf_per_capita[is.na(clean_state_data$phf_per_capita)] <- median(clean_state_data$phf_per_capita, na.rm = TRUE)
+```
+
+
+## G-comp with the other model:
+
+```{r}
+# 1. Fit Poisson outcome model with population offset
+counts_fit <- glm(
+  measles_cases ~ exposure_binary + pct_urban + pct_insuredE +
+    pct_bachelors_plusE + pct_povertyE + phf_per_capita +
+    offset(log(population)),
+  family = poisson(),
+  data = clean_state_data
+)
+
+# 2. Create counterfactual datasets
+data_1 <- clean_state_data
+data_1$exposure_binary <- 1
+
+data_0 <- clean_state_data
+data_0$exposure_binary <- 0
+
+# 3. Predict counterfactual outcomes
+mu1 <- predict(counts_fit, newdata = data_1, type = "response")
+mu0 <- predict(counts_fit, newdata = data_0, type = "response")
+
+# 4. Simple substitution (g-computation) ATE
+ATE <- mean(mu1 - mu0)
+
+# 5. Output
+ATE
+```
+
+The average difference in expected number of measles cases per state if every state were exposed vs if no state were exposed, holding population structure and covariates fixed. On average across states, exposure is associated with an estimated change of 28.5 measles cases per state, after adjusting for population size and state-level covariates.
+
+## Inference (Bootstrapping)
+
+```{r}
+counts_gcomp <- function(dat){
+  
+  mod <- glm(measles_cases ~ exposure_binary + pct_urban + pct_insuredE +
+    pct_bachelors_plusE + pct_povertyE + phf_per_capita +
+    offset(log(population)),
+    family = poisson(),
+    data = dat)
+  
+  #defining potential outcomes
+  data_1 <- dat
+  data_1$exposure_binary <- 1
+  
+  data_0 <- dat
+  data_0$exposure_binary <- 0
+  
+  #predictions
+  mu1 <- predict(counts_fit, newdata = data_1, type = "response")
+  mu0 <- predict(counts_fit, newdata = data_0, type = "response")
+  
+  ATE <- mean(mu1 - mu0)
+  return(ATE)
+  
+}
+
+counts_gcomp(clean_state_data)
+
+
+#running bootstrap
+
+B <- 500
+
+counts_boot_est <- data.frame(matrix(NA, nrow = B, ncol = 1))
+
+for(b in 1:B){
+  n <- nrow(clean_state_data)
+  index.boot <- sample(1:n, replace = T)
+  dt_boot <- clean_state_data[index.boot,]
+  
+  counts_boot_est[b,] <- counts_gcomp(dat = dt_boot)
+  
+}
+colnames(counts_boot_est) <- "Count Estimator"
+
+summary(counts_boot_est$`Count Estimator`)
+var(counts_boot_est$`Count Estimator`)
+```
+
+### Histogram and 95% CI
+
+```{r}
+create.CI <- function(pt, boot, alpha=0.05){
+  Zquant <- qnorm(alpha/2, lower.tail=F)
+  CI.normal <- c(pt - Zquant*sd(boot), pt + Zquant*sd(boot))
+  CI.quant <- quantile(boot, prob=c(0.025,0.975))
+  
+  yay<- data.frame(t(c(pt, CI.normal, CI.quant)))
+  colnames(yay)<- c('pt', paste0(c('CI.lo', 'CI.hi'), '.normal'),
+                    paste0(c('CI.lo', 'CI.hi'), '.quant') )
+  return(yay)
+}
+
+CI <- create.CI(pt = 28.49236, boot=counts_boot_est[,"Count Estimator"])
+
+CI
+
+counts_boot_est%>%
+  ggplot(aes(x = `Count Estimator`)) +
+  geom_histogram(color = "#06768d", fill = "turquoise") +
+  labs(y = "Frequency", x = "G-Comp ATE Estimate (Counts)") +
+  theme_minimal() +
+  ggtitle("Point estimates from G-Comp estimator over 500 bootstrapped samples")
+```
+
+
+
+
