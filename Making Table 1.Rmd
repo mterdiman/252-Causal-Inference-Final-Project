@@ -1,6 +1,8 @@
 ---
-output: pdf_document
+output: html_document
 ---
+
+## Table 1
 
 ```{r}
 library(tidyverse)
@@ -11,6 +13,10 @@ library(gtsummary)
 library(kableExtra)
 
 clean_data <- read.csv("data/clean_state_data.csv")
+
+clean_data$phf_per_capita[is.na(clean_data$phf_per_capita) & clean_data$state == "Georgia"] <- 108
+clean_data$phf_per_capita[is.na(clean_data$phf_per_capita) & clean_data$state == "Mississippi"] <- 567831325/2954160
+
 ```
 
 ```{r}
@@ -29,9 +35,71 @@ clean_data_table1 %>%
   tbl_summary(include = c(`% Insured`, `% with Bachelor's Degree or higher`, `% Living Under Poverty Line`, `% Living in Urban Area`, `Public Health Funding per Capita`),
          by = exposure, type = all_dichotomous() ~ "categorical", missing_text = "NA") %>%
   bold_labels() %>%
-  modify_caption("Demographic Characteristics of 50 US States, 2024") %>%
+  modify_caption("Demographic Characteristics of 50 US States + Washington DC, 2024") %>%
   as_kable_extra(booktabs = TRUE, longtable = TRUE, linesep = "") %>%
   kableExtra::kable_styling(position = "center", latex_options = "hold_position", font_size = 9) %>%
-  column_spec(2:4, width = "3.5cm")
+  column_spec(2:3, width = "3.5cm")
+```
+
+## Outcome Map
+
+```{r}
+library(sf)
+library(ggplot2)
+library(dplyr)
+library(maps)
+
+states <- st_as_sf(map("state", plot = FALSE, fill = TRUE))
+
+# The map package uses lowercase state names
+states$state <- tools::toTitleCase(states$ID)
+
+# Join your data to map geometries
+map_df <- left_join(states, clean_data, by = "state")
+
+# Plot
+ggplot(map_df) +
+  geom_sf(aes(fill = cases_per_100k), color = "white") +
+  scale_fill_viridis_c(option = "D") +
+  theme_void() +
+  labs(fill = "") +
+   theme(
+    legend.position = c(0.87, 0.15),   # x (left), y (down from top)
+    legend.justification = c(0, 0),
+    legend.background = element_rect(fill = "white", color = "gray80"),
+    plot.title = element_text(hjust = 0.2),
+    legend.key = element_rect(fill = NA, colour = NA)
+  ) + 
+  ggtitle("2025 Measles Case Rate per 100k in the US")
+
+
+#binning might be helpful
+data_bin <- clean_data %>%
+  mutate(bin_case = case_when(
+    measles_cases == 0 ~ "0",
+    measles_cases >= 1 & measles_cases < 10 ~ "1-9",
+    measles_cases >= 10 & measles_cases < 40 ~ "10-49",
+    measles_cases >= 50 & measles_cases < 100 ~ "50-99",
+    measles_cases >= 100 & measles_cases < 500 ~ "100-499",
+    TRUE ~ "500+"
+  ))
+
+map_df_bin <- left_join(states, data_bin, by = "state")
+
+
+# Plot
+ggplot(map_df_bin) +
+  geom_sf(aes(fill = bin_case), color = "white") +
+  scale_fill_brewer(palette = "Blues") +
+  theme_void() +
+  labs(fill = "") +
+   theme(
+    legend.position = c(0.87, 0.15),   # x (left), y (down from top)
+    legend.justification = c(0, 0),
+    legend.background = element_rect(fill = "white", color = "gray80"),
+    plot.title = element_text(hjust = 0.2),
+    legend.key = element_rect(fill = NA, colour = NA)
+  ) + 
+  ggtitle("2025 Measles Case Counts in the US")
 ```
 

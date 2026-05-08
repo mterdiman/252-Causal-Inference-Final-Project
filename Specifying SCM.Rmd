@@ -3,6 +3,8 @@
 ```{r}
 library(tidyverse)
 clean_data <- read.csv("data/clean_state_data.csv")
+clean_data$phf_per_capita[is.na(clean_data$phf_per_capita) & clean_data$state == "Georgia"] <- 108
+clean_data$phf_per_capita[is.na(clean_data$phf_per_capita) & clean_data$state == "Mississippi"] <- 567831325/2954160
 ```
 
 ## Endogenous Variables
@@ -40,21 +42,21 @@ clean_data %>%
   ggplot(aes(x = cases_per_100k)) +
   geom_histogram(bins = 100, fill = "turquoise") +
   labs(x = "Case Rate", y = "Count") +
-  ggtitle("2025 Measles Case Rate Per 100k in 50 US States") +
+  ggtitle("2025 Measles Case Rate Per 100k in 50 US States + Washington DC") +
   theme_minimal()
 
 clean_data %>%
   ggplot(aes(x = measles_cases)) +
   geom_histogram(bins = 100, fill = "black") +
   labs(x = "Case Count", y = "Count") +
-  ggtitle("2025 Measles Case Raw Counts in 50 US States") +
+  ggtitle("2025 Measles Case Raw Counts in 50 US States + Washington DC") +
   theme_minimal()
 
 clean_data %>%
   ggplot(aes(x = log(cases_per_100k))) +
   geom_histogram(bins = 100, fill = "maroon") +
   labs(x = "Log Case Rate", y = "Count") +
-  ggtitle("Natural Log of 2025 Measles Case Rate Per 100k in 50 US States") +
+  ggtitle("Natural Log of 2025 Measles Case Rate Per 100k in 50 US States + Washington DC") +
   theme_minimal()
 ```
 
@@ -92,12 +94,18 @@ clean_data_long <- clean_data %>%
   )
 
 clean_data_long %>%
+   mutate(Measure = recode(Measure,
+    "pct_insuredE" = "% Percent Insured",
+    "pct_bachelors_plusE" = "% Bachelor's Degree or Higher",
+    "pct_povertyE" = "% Living Under Poverty Line",
+    "pct_urban" = "% Urban Population"
+  )) %>%
   ggplot(aes(x = Percent)) +
-  geom_histogram(fill = "maroon") +
-  facet_wrap(~Measure) +
+  geom_histogram(fill = "salmon", color = "red", bins = 100) +
+  facet_wrap(~Measure, ncol = 2) +
   theme_minimal() +
   labs(x = "Statewide Percentage", y = "Count") +
-  ggtitle("Distributions of Statewide Attributes")
+  ggtitle("Distributions of Confounders")
 
 clean_data %>%
   ggplot(aes(x = median_hh_incomeE)) +
@@ -107,11 +115,11 @@ clean_data %>%
   ggtitle("Distribution of Median Household Income in 50 US States")
 
 clean_data %>%
-  ggplot(aes(x = pct_urban)) +
-  geom_histogram(fill = "black") + 
+  ggplot(aes(x = phf_per_capita)) +
+  geom_histogram(fill = "salmon", color = "red") + 
   theme_minimal() +
-  labs(x = "% of Population in Urban Areas", y = "Count") +
-  ggtitle("Distribution of % Urban Population in 50 US States")
+  labs(x = "Public Health Funding per Capita", y = "Count") +
+  ggtitle("Distribution PHF Funding per Capita")
 
 ```
 
@@ -167,6 +175,7 @@ We also assume:
 - **Positivity:** \(0 < P(A = a \mid W) < 1\) for \(a \in \{0,1\}\). (NEED TO CHECK THIS!!!!)
 
 Under these assumptions, our causal effect is identifiable. 
+
 
 
 
