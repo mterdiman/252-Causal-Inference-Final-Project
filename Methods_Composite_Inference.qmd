@@ -419,14 +419,14 @@ inference_df%>%
   geom_histogram(color = "#06768d", fill = "turquoise") +
   labs(y = "Frequency", x = "Unadjusted ATE Estimate") +
   theme_minimal() +
-  ggtitle("Point estimates from simple substitution estimator over 500 bootstrapped samples")
+  ggtitle("Point estimates from unadjusted over 500 bootstrapped samples")
 
 inference_df%>%
   ggplot(aes(x = `GComp Estimator`)) +
   geom_histogram(color = "#06768d", fill = "turquoise") +
   labs(y = "Frequency", x = "G-Computation ATE Estimate") +
   theme_minimal() +
-  ggtitle("Point estimates from IPW estimator over 500 bootstrapped samples")
+  ggtitle("Point estimates from G-Comp estimator over 500 bootstrapped samples")
 
 inference_df%>%
   ggplot(aes(x = `IPW Estimator`)) +
