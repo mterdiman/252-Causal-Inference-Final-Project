@@ -171,8 +171,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>  data_0<span class="sc">$</span>exposure_binary <span class="ot">&lt;-</span> <span class="dv">0</span></span>
 <span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>  </span>
 <span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>  <span class="co">#predictions</span></span>
-<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>  mu1 <span class="ot">&lt;-</span> <span class="fu">predict</span>(counts_fit, <span class="at">newdata =</span> data_1, <span class="at">type =</span> <span class="st">"response"</span>)</span>
-<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>  mu0 <span class="ot">&lt;-</span> <span class="fu">predict</span>(counts_fit, <span class="at">newdata =</span> data_0, <span class="at">type =</span> <span class="st">"response"</span>)</span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>  mu1 <span class="ot">&lt;-</span> <span class="fu">predict</span>(mod, <span class="at">newdata =</span> data_1, <span class="at">type =</span> <span class="st">"response"</span>)</span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>  mu0 <span class="ot">&lt;-</span> <span class="fu">predict</span>(mod, <span class="at">newdata =</span> data_0, <span class="at">type =</span> <span class="st">"response"</span>)</span>
 <span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a>  </span>
 <span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>  ATE <span class="ot">&lt;-</span> <span class="fu">mean</span>(mu1 <span class="sc">-</span> mu0)</span>
 <span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>  <span class="fu">return</span>(ATE)</span>
@@ -201,12 +201,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(counts_boot_est<span class="sc">$</span><span class="st">`</span><span class="at">Count Estimator</span><span class="st">`</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-  15.12   21.98   27.17   28.38   33.26   58.23 </code></pre>
+<pre><code>    Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
+-130.210    5.348   24.459   23.614   41.315  332.240 </code></pre>
 </div>
 <div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">var</span>(counts_boot_est<span class="sc">$</span><span class="st">`</span><span class="at">Count Estimator</span><span class="st">`</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>[1] 67.97352</code></pre>
+<pre><code>[1] 1271.759</code></pre>
 </div>
 </div>
 <section id="histogram-and-95-ci" class="level3">
@@ -228,7 +228,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>CI</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>        pt CI.lo.normal CI.hi.normal CI.lo.quant CI.hi.quant
-1 28.49236     12.33323     44.65149    17.25525    48.97424</code></pre>
+1 28.49236    -41.40335     98.38807   -42.61664    90.80324</code></pre>
 </div>
 <div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>counts_boot_est<span class="sc">%&gt;%</span></span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> <span class="st">`</span><span class="at">Count Estimator</span><span class="st">`</span>)) <span class="sc">+</span></span>

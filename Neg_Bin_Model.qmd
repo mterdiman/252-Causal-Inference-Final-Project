@@ -72,8 +72,8 @@ counts_gcomp <- function(dat){
   data_0$exposure_binary <- 0
   
   #predictions
-  mu1 <- predict(counts_fit, newdata = data_1, type = "response")
-  mu0 <- predict(counts_fit, newdata = data_0, type = "response")
+  mu1 <- predict(mod, newdata = data_1, type = "response")
+  mu0 <- predict(mod, newdata = data_0, type = "response")
   
   ATE <- mean(mu1 - mu0)
   return(ATE)
